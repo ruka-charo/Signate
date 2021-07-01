@@ -4,6 +4,11 @@ import pandas as pd
 pd.set_option('display.max_columns', 500)
 import matplotlib.pyplot as plt
 
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, confusion_matrix
+
 
 #%% データ読み込み
 train_data = pd.read_table('./data/train.tsv')
@@ -51,8 +56,8 @@ mix_data = pd.concat([train_data, test_data], ignore_index=True)
 mix_data
 
 #%% 関係なさそうなものをdropする
-# 初めは「marital-status」, 「relationship」, 「native-country」をdropする
-mix_drop = mix_data.copy().drop(['marital-status', 'relationship', 'native-country'], axis=1)
+# 初めは「id」, 「marital-status」, 「relationship」, 「native-country」をdropする
+mix_drop = mix_data.copy().drop(['id', 'marital-status', 'relationship', 'native-country'], axis=1)
 mix_drop.head()
 
 #%% カテゴリ変数をonehot化する
@@ -63,3 +68,50 @@ mix_com = mix_drop.copy().drop(['education', 'workclass', 'occupation', 'race', 
 
 mix_com.head()
 mix_com.shape
+
+#%% 訓練データとテストデータを分ける
+train = mix_com.query('Y != "NaN"')
+test = mix_com.query('Y == "NaN"')
+
+
+#%% 訓練データを説明変数と目的変数に分ける
+X_train = train.copy().drop(['Y'], axis=1)
+y_train = train['Y']
+
+X_test = test.copy().drop(['Y'], axis=1)
+
+#%% データの標準化
+ss = StandardScaler()
+
+# 訓練データの標準化
+X_train_std = pd.DataFrame(ss.fit_transform(X_train),
+                        columns=X_train.columns)
+X_train_std.head()
+# テストデータの標準化
+X_test_std = pd.DataFrame(ss.transform(X_test),
+                        columns=X_test.columns)
+X_test_std.head()
+
+
+'''モデルの学習と評価'''
+#%% 訓練データと検証データに分ける
+X_learn, X_val, y_learn, y_val = train_test_split(X_train_std, y_train, test_size=0.2)
+
+#%% モデルの学習と評価
+lr = LogisticRegression()
+lr.fit(X_learn, y_learn)
+y_pred = lr.predict(X_val)
+
+print('Accuracy_score:', accuracy_score(y_val, y_pred))
+print('confusion_matrix:\n', confusion_matrix(y_val, y_pred))
+
+
+'''テストデータで予測, Submit'''
+#%% テストデータで予測し、csvファイルで保存
+y_pred_test = pd.DataFrame(lr.predict(X_test_std), columns=['income'])
+ans = pd.DataFrame(test_data['id'], columns=['id'])
+ans = ans.merge(y_pred_test, right_index=True, left_index=True)
+ans['income'] = ans['income'].replace({0: '<=50K', 1: '>50K'})
+ans.head()
+
+ans.to_csv('./data/answer.csv', header=False, index=False)
