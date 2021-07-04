@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 import category_encoders as ce
 from sklearn.model_selection import train_test_split
-import xgboost as xgb
+import lightgbm as lgb
 from sklearn.metrics import accuracy_score, confusion_matrix, log_loss
 
 
@@ -25,7 +25,6 @@ mix_data = mix_data.replace({'<=50K': 0, '>50K': 1, '?': np.nan})
 mix_data.head(10)
 
 #%% 関係なさそうなものをdropする
-# 初めは「id」, 「marital-status」, 「relationship」, 「native-country」をdropする
 drop_features = ['id']
 mix_drop = mix_data.copy().drop(drop_features, axis=1)
 mix_drop.head()
@@ -36,8 +35,8 @@ label_features = ['workclass', 'education', 'occupation', 'race', 'sex',
 oe = ce.OrdinalEncoder(cols=label_features, handle_unknown='ignore')
 mix_ec = oe.fit_transform(mix_drop)
 
-mix_ec.head()
 oe.category_mapping
+mix_ec.head()
 
 #%% 訓練データとテストデータを分ける
 train = mix_ec.query('Y != "NaN"')
@@ -53,37 +52,43 @@ X_test = test.copy().drop(['Y'], axis=1)
 X_learn, X_val, y_learn, y_val = train_test_split(X_train, y_train, test_size=0.2)
 
 
-'''xgboostモデル作成'''
-#%% 特徴量と目的変数をxgboost専用のデータ構造に変換する
-dtrain = xgb.DMatrix(X_learn, label=y_learn)
-dval = xgb.DMatrix(X_val, label=y_val)
-dtest = xgb.DMatrix(X_test)
+'''lgbモデルの作成'''
+#%% 特徴量と目的変数をlgm専用のデータ型にする
+lgb_train = lgb.Dataset(X_learn, label=y_learn, free_raw_data=False)
+lgb_eval = lgb.Dataset(X_val, label=y_val, free_raw_data=False)
 
-#%% ハイパーパラメータの設定
-params = {'objective': 'binary:logistic', 'silent': 1}
-num_round = 100
+# ハイパーパラメータの設定
+params = {'objective': 'binary', 'verbose': 0, 'metrics': 'binary_logloss'}
 
-#%% 学習と評価
-# バリデーションデータをモデルに渡し、スコアをモニタリングする
-watch_list = [(dtrain, 'train'), (dval, 'eval')]
-model = xgb.train(params, dtrain, num_round,
-                evals=watch_list, early_stopping_rounds=10,
+#%% 学習の実行
+model = lgb.train(params, lgb_train, 100,
+                valid_sets=[lgb_train, lgb_eval],
+                valid_names=['train', 'valid'],
+                categorical_feature=label_features,
+                early_stopping_rounds=10,
                 verbose_eval=10)
 
-# バリデーションでスコアを確認
-val_pred = model.predict(dval, ntree_limit=model.best_ntree_limit)
-score = log_loss(y_val, val_pred)
-print('log-loss_score:', score)
-print('accuracy_score:', accuracy_score(y_val.values, val_pred.round()))
-print('confusion_matrix:\n', confusion_matrix(y_val.values, val_pred.round()))
+# バリデーションデータでのスコアを確認
+val_pred = model.predict(X_val, num_iteration=model.best_iteration)
+print('log_loss値:', log_loss(y_val, val_pred))
+print('accuracy_score:', accuracy_score(y_val, val_pred.round()))
+print('confusion_matrix\n', confusion_matrix(y_val, val_pred.round()))
 
 #%% 変数重要度
-xgb.plot_importance(model, importance_type='weight' , show_values=True)
+# split: 頻度、gain: 目的関数の現象寄与率
+importance_type = 'gain'
+features = X_learn.columns
+importances = model.feature_importance(importance_type=importance_type)
+indices = np.argsort(-importances)
+plt.bar(np.array(features)[indices], np.array(importances[indices]))
+plt.xticks(rotation=90)
+plt.title(importance_type)
+plt.show()
 
 
 '''テストデータで予測, Submit'''
 #%% テストデータで予測し、csvファイルで保存
-test_pred = model.predict(dtest, ntree_limit=model.best_ntree_limit)
+test_pred = model.predict(X_test, num_iteration=model.best_iteration)
 pred_df = pd.DataFrame(test_pred.round(), columns=['income'])
 ans = pd.DataFrame(test_data['id'], columns=['id'])
 ans = ans.merge(pred_df, right_index=True, left_index=True)
