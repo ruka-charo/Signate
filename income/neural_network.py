@@ -39,7 +39,6 @@ label_features = ['workclass', 'occupation', 'marital-status', 'relationship']
 ohe = ce.OneHotEncoder(cols=label_features, handle_unknown='impute')
 mix_ec = ohe.fit_transform(mix_drop)
 
-oe.category_mapping
 mix_ec.head()
 
 #%% 訓練データとテストデータを分ける
@@ -58,7 +57,8 @@ X_train_std = ss.fit_transform(X_train)
 X_test_std = ss.transform(X_test)
 
 # 訓練データと検証データに分ける
-X_learn, X_val, y_learn, y_val = train_test_split(X_train_std, y_train, test_size=0.2)
+X_learn, X_val, y_learn, y_val = train_test_split(X_train_std, y_train,
+                                                test_size=0.2, shuffle=True, stratify=y_train)
 X_learn.shape
 
 
@@ -77,14 +77,14 @@ model.summary()
 #%% 学習と評価
 batch_size = 700
 epochs = 50
-es = EarlyStopping(monitor='val_loss', patience=3, verbose=1)
-cp = ModelCheckpoint(filepath='./data/best_model.h5', monitor='val_loss',
-                    save_best_only=True, verbose=1)
+es = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True, verbose=1)
+# cp = ModelCheckpoint(filepath='./data/best_model.h5', monitor='val_loss',
+                    # save_best_only=True, verbose=1)
 
 history = model.fit(X_learn, y_learn,
                     batch_size=batch_size, epochs=epochs,
                     verbose=1, validation_data=(X_val, y_val),
-                    callbacks=[es, cp], shuffle=True)
+                    callbacks=[es], shuffle=True)
 
 # バリデーションデータでスコアを確認する
 val_pred = model.predict(X_val)
