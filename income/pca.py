@@ -7,8 +7,8 @@ import matplotlib.pyplot as plt
 
 import category_encoders as ce
 from sklearn.model_selection import train_test_split
-import lightgbm as lgb
-from sklearn.metrics import accuracy_score, confusion_matrix, log_loss
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
 
 
 #%% データ読み込み
@@ -21,7 +21,7 @@ test_data = pd.read_table('./data/test.tsv')
 mix_data = pd.concat([train_data, test_data], ignore_index=True)
 
 # 訓練データの目的変数を0, 1に変換する
-# 「？」は欠損値として扱う
+# 「？」は欠損値として処理する
 mix_data = mix_data.replace({'<=50K': 0, '>50K': 1, '?': np.nan})
 mix_data.head(10)
 
@@ -38,6 +38,17 @@ mix_ec = oe.fit_transform(mix_drop)
 
 oe.category_mapping
 mix_ec.head()
+
+#%% 主成分分析
+mix_pca = mix_ec.copy().drop(['Y'], axis=1)
+# まずは標準化
+ss = StandardScaler()
+mix_pca = ss.fit_transform(mix_pca)
+# 主成分分析
+pca = PCA()
+mix_pca = pca.fit_transform(mix_pca)
+np.cumsum(pca.explained_variance_ratio_)
+
 
 #%% 訓練データとテストデータを分ける
 train = mix_ec.query('Y != "NaN"')

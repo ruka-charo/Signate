@@ -1,10 +1,7 @@
 import os
 os.chdir('/Users/rukaoide/Library/Mobile Documents/com~apple~CloudDocs/Documents/Python/Signate/income/split_file')
 
-import matplotlib.pyplot as plt
-
 import lightgbm as lgb
-from sklearn.metrics import accuracy_score, confusion_matrix, log_loss
 
 from config import Config
 from preprocess_class import Preprocess

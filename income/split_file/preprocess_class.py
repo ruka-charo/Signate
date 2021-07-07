@@ -7,6 +7,7 @@ from sklearn.model_selection import train_test_split
 
 class Preprocess:
     def __init__(self):
+        self.drop_features = ['id']
         self.label_features = ['workclass', 'education', 'occupation', 'race',
                     'sex', 'marital-status', 'relationship', 'native-country']
 
@@ -14,6 +15,7 @@ class Preprocess:
     def preprocessing(self, train, test):
         mix_data = self._concat_data(train, test)
         mix_data = self._impute_nan(mix_data)
+        mix_data = self._drop_columns(mix_data)
         mix_data_std = self._category_labeling(mix_data)
         return self._data_split(mix_data_std)
 
@@ -27,12 +29,12 @@ class Preprocess:
         return data.replace({'<=50K': 0, '>50K': 1, '?': np.nan})
 
     # 不必要なカラムの削除
-    def _drop_columns(self, data, features):
-        return data.copy().drop(features, axis=1)
+    def _drop_columns(self, data):
+        return data.copy().drop(self.drop_features, axis=1)
 
     # ラベルエンコードする
     def _category_labeling(self, data):
-        oe = ce.OrdinalEncoder(cols=self.label_features, handle_unknown='ignore')
+        oe = ce.OrdinalEncoder(cols=self.label_features, handle_unknown='impute')
         return oe.fit_transform(data)
 
     # train, val, testに分ける
