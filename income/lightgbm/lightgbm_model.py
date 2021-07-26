@@ -1,54 +1,32 @@
 import os
-os.chdir('/Users/rukaoide/Library/Mobile Documents/com~apple~CloudDocs/Documents/Python/Signate/income')
+os.chdir('/Users/rukaoide/Library/Mobile Documents/com~apple~CloudDocs/Documents/Python/Signate/income/lightgbm')
 import numpy as np
 import pandas as pd
 pd.set_option('display.max_columns', 500)
 import matplotlib.pyplot as plt
 
-import category_encoders as ce
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score
 import lightgbm as lgb
 from sklearn.metrics import accuracy_score, confusion_matrix, log_loss
 
+from preprocess import *
+import config
+
+
+# 変数の設定 ============================
+label_features = config.label_features
+
+# lightgbm
+objective = 'binary'
+metrics = 'binary_logloss'
+# =====================================
 
 #%% データ読み込み
-train_data = pd.read_table('./data/train.tsv')
-test_data = pd.read_table('./data/test.tsv')
+train_data = pd.read_table('../data/train.tsv')
+test_data = pd.read_table('../data/test.tsv')
 
-
-'''データ前処理'''
-#%% trainデータとtestデータを結合する
-mix_data = pd.concat([train_data, test_data], ignore_index=True)
-
-# 訓練データの目的変数を0, 1に変換する
-# 「？」は欠損値として扱う
-mix_data = mix_data.replace({'<=50K': 0, '>50K': 1, '?': np.nan})
-mix_data.head(10)
-
-#%% 関係なさそうなものをdropする
-drop_features = ['id']
-mix_drop = mix_data.copy().drop(drop_features, axis=1)
-mix_drop.head()
-
-#%% カテゴリ変数をlabelencordingする
-label_features = ['workclass', 'education', 'occupation', 'race', 'sex',
-                'marital-status', 'relationship', 'native-country']
-oe = ce.OrdinalEncoder(cols=label_features, handle_unknown='ignore')
-mix_ec = oe.fit_transform(mix_drop)
-
-oe.category_mapping
-mix_ec.head()
-
-#%% 訓練データとテストデータを分ける
-train = mix_ec.query('Y != "NaN"')
-test = mix_ec.query('Y == "NaN"')
-
-# 訓練データを説明変数と目的変数に分ける
-X_train = train.copy().drop(['Y'], axis=1)
-y_train = train['Y']
-
-X_test = test.copy().drop(['Y'], axis=1)
-
+#%% データ前処理
+X_train, y_train, X_test = preprocessing(train_data, test_data)
 # 訓練データと検証データに分ける
 X_learn, X_val, y_learn, y_val = train_test_split(X_train, y_train, test_size=0.2)
 
@@ -59,7 +37,7 @@ lgb_train = lgb.Dataset(X_learn, label=y_learn, free_raw_data=False)
 lgb_eval = lgb.Dataset(X_val, label=y_val, free_raw_data=False)
 
 # ハイパーパラメータの設定
-params = {'objective': 'binary', 'verbose': 0, 'metrics': 'binary_logloss'}
+params = {'objective': objective, 'verbose': 0, 'metrics': metrics}
 
 #%% 学習の実行
 model = lgb.train(params, lgb_train, 100,
