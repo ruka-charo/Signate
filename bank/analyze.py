@@ -2,6 +2,8 @@
 import os, sys
 os.chdir('/Users/rukaoide/Library/Mobile Documents/com~apple~CloudDocs/Documents/Python/Signate/bank')
 sys.path.append('../..')
+import numpy as np
+np.set_printoptions(precision=3)
 import pandas as pd
 pd.set_option('display.max_columns', 50)
 import matplotlib.pyplot as plt
@@ -10,7 +12,6 @@ import japanize_matplotlib
 from IPython.display import display
 
 import lightgbm as lgb
-from sklearn.model_selection import train_test_split, cross_val_score
 
 from Function.preprocess_func import *
 from function import *
@@ -39,40 +40,48 @@ test_data = config.test_data
 display(train_data.head())
 
 
-#%% データの準備
-X_train = train_data.copy().drop(['id', 'y'], axis=1)
-y_train = train_data['y']
+# データの準備
+train = train_data.copy().drop(['id'], axis=1)
 X_test = test_data.copy().drop(['id'], axis=1)
 
 #%% データ前処理
 # カテゴリ変数を変換する
-X_train_en, X_test_en = encoding('label', X_train, X_test, category_features)
+train_en, X_test_en = encoding('label', train, X_test, category_features)
 
 # 月を対応する数字に置き換える
-X_train_en = month_replace(X_train_en)
-X_test_en = month_replace(X_test_en)
-display(X_train_en.head())
-
-#%% データを訓練用と検証用に分割する
-X_learn, X_val, y_learn, y_val = train_test_split(X_train_en, y_train,
-                stratify=y_train, test_size=0.2, shuffle=True, random_state=0)
+train_en = month_replace(train_en)
+X_test_en = month_replace(X_test_en).drop(['y'], axis=1)
+display(train_en.head())
 
 
-'''モデル構築'''
-#%% LightGBMを用いる
-clf = lgb.LGBMClassifier(objective='binary', metric='auc')
-# cross_val_scoreで精度のバラつきを確認する
-print('交差検証:', cross_val_score(clf, X_train_en, y_train, cv=5, scoring='roc_auc'))
+#%% ダウンサンプリングの準備
+train_0 = train_en.query('y == 0')
+train_1 = train_en.query('y == 1')
 
-#%% 学習
-clf.fit(X_learn, y_learn, eval_set=[(X_val, y_val)],
-        early_stopping_rounds=10, verbose=10)
+pred_score = []
+#%% 学習と予測
+for i in range(29):
+    if i == 28: # 端数の処理
+        train_batch_0 = train_0[50*i: 1450]
+    else:
+        train_batch_0 = train_0[50*i: 50*(i+1)]
 
-# 変数重要度
-lgb_importance(X_learn, clf)
+    # 訓練データ
+    X_learn, X_val, y_learn, y_val = make_batch_data(train_batch_0, train_1)
 
-# 予測
-y_pred = clf.predict_proba(X_test_en, num_iteration=clf.best_iteration_)[:, 1]
+
+    '''モデル学習'''
+    # LightGBMを用いる
+    clf = lgb.LGBMClassifier(objective='binary', metric='auc', n_estimators=1000)
+    clf.fit(X_learn, y_learn, eval_set=[(X_val, y_val)],
+            early_stopping_rounds=100)
+
+    clf.predict_proba(X_test_en, num_iteration=clf.best_iteration_)[:, 1].tolist()
+    pred_score.append(y_pred)
+
+
+# 予測値の平均を最終結果にする
+y_pred = np.mean(np.array(pred_score).T, axis=1)
 
 
 '''投稿用ファイルの作成'''
