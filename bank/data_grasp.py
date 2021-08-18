@@ -10,6 +10,21 @@ from IPython.display import display
 
 import config
 
+# ----------------------------------------
+# marital   : 未婚、既婚
+# education : 教育水準
+# default   : 債務不履行があるか
+# balance   : 年間平均残高
+# housing   : 住宅ローン
+# loan      : 個人ローン
+# contact   : 連絡方法
+# day, month: 最終接触月日
+# duration  : 最終接触時間(s)
+# campaign  : 現キャンペーンにおける接触回数
+# previous  : 現キャンペーン以前までに顧客に接触した回数
+# poutcome  : 前回のキャンペーンの成果
+# y         : 定期預金申し込み有無（1:有り、0:無し）
+# ----------------------------------------
 
 # 訓練データの読み込み
 train_data = config.train_data
