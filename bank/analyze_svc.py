@@ -11,7 +11,10 @@ plt.style.use('seaborn')
 import japanize_matplotlib
 from IPython.display import display
 
-import lightgbm as lgb
+from sklearn.svm import SVC
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import roc_auc_score
+from sklearn.pipeline import make_pipeline
 
 from Function.preprocess_func import *
 from function import *
@@ -24,24 +27,38 @@ import config
 train_data = config.train_data
 test_data = config.test_data
 
-category_features = ['job', 'marital', 'default', 'housing',
-                    'education', 'loan', 'contact', 'poutcome']
+category_features = ['job', 'marital', 'housing','default', 'balance',
+                    'loan', 'contact', 'poutcome', 'education']
 drop_features = ['id'] # 使用しない特徴量
+
+replace_edu = 'tertiary' # 欠損値の補完
+replace_con = 'cellular' # 欠損値の補完
 
 # ============================================
 
 
 # データの準備
-train = train_data.copy().drop(['id'], axis=1)
-X_test = test_data.copy().drop(['id'], axis=1)
+train = train_data.copy().drop(drop_features, axis=1)
+X_test = test_data.copy().drop(drop_features, axis=1)
 
 #%% データ前処理
-# カテゴリ変数を変換する
-train_en, X_test_en = encoding('label', train, X_test, category_features)
+# 欠損値を最頻値で置換する
+#train['education'].replace('unknown', replace_edu, inplace=True)
+#X_test['education'].replace('unknown', replace_edu, inplace=True)
 
-# 月を対応する数字に置き換える
+#train['contact'].replace('unknown', replace_con, inplace=True)
+#X_test['contact'].replace('unknown', replace_con, inplace=True)
+
+# カテゴリ変数を変換する
+train_en, X_test_en = encoding('onehot', train, X_test, category_features)
+
+# 月とeducationを対応する数字に置き換える(label encoder)
+# educationのunknownは最頻値であるsecondaryに置換する
 train_en = month_replace(train_en)
 X_test_en = month_replace(X_test_en).drop(['y'], axis=1)
+
+#train_en = education_replace(train_en)
+#X_test_en = education_replace(X_test_en).drop(['y'], axis=1)
 display(train_en.head())
 
 
@@ -49,6 +66,7 @@ display(train_en.head())
 train_0 = train_en.query('y == 0')
 train_1 = train_en.query('y == 1')
 
+auc_score = []
 pred_score = []
 #%% 学習と予測
 for i in range(29):
@@ -62,17 +80,21 @@ for i in range(29):
 
 
     '''モデル学習'''
-    # LightGBMを用いる
-    clf = lgb.LGBMClassifier(objective='binary', metric='auc', n_estimators=1000)
-    clf.fit(X_learn, y_learn, eval_set=[(X_val, y_val)],
-            early_stopping_rounds=100, verbose=False)
+    # LogisticRegressionで学習
+    pipe = make_pipeline(MinMaxScaler(),
+                        SVC(C=1, kernel='rbf', gamma=0.01))
+    pipe.fit(X_learn, y_learn)
+    val_pred = pipe.predict(X_val)
 
-    # 変数重要度
-    lgb_importance(train_0, clf)
+    auc = roc_auc_score(y_val, val_pred)
+    auc_score.append(auc)
+    print(f'{i+1}回目: {auc}')
 
-    y_pred = clf.predict_proba(X_test_en, num_iteration=clf.best_iteration_)[:, 1].tolist()
+    # 予測
+    y_pred = pipe.predict(X_test_en).tolist()
     pred_score.append(y_pred)
 
+print(f'aucスコアの平均値: {np.mean(auc_score)}')
 
 # 予測値の平均を最終結果にする
 y_pred = np.mean(np.array(pred_score).T, axis=1)
@@ -85,4 +107,4 @@ ans = answer_csv(y_pred, id)
 display(ans.head())
 
 # ファイルの保存
-ans.to_csv('data/answer_lgb.csv', header=False, index=False)
+ans.to_csv('data/answer_log.csv', header=False, index=False)

@@ -23,24 +23,43 @@ import config
 
 
 
-# 変数定義
-category_features = config.category_features
+# 変数定義 ====================================
+# Encoding用カテゴリ変数
 train_data = config.train_data
 test_data = config.test_data
-display(train_data.head())
+
+category_features = ['job', 'marital', 'housing','default', 'balance',
+                    'loan', 'contact', 'poutcome', 'education']
+drop_features = ['id'] # 使用しない特徴量
+
+replace_edu = 'tertiary' # 欠損値の補完
+replace_con = 'cellular' # 欠損値の補完
+
+# ============================================
 
 
 # データの準備
-train = train_data.copy().drop(['id'], axis=1)
-X_test = test_data.copy().drop(['id'], axis=1)
+train = train_data.copy().drop(drop_features, axis=1)
+X_test = test_data.copy().drop(drop_features, axis=1)
 
 #%% データ前処理
+# 欠損値を最頻値で置換する
+#train['education'].replace('unknown', replace_edu, inplace=True)
+#X_test['education'].replace('unknown', replace_edu, inplace=True)
+
+#train['contact'].replace('unknown', replace_con, inplace=True)
+#X_test['contact'].replace('unknown', replace_con, inplace=True)
+
 # カテゴリ変数を変換する
 train_en, X_test_en = encoding('onehot', train, X_test, category_features)
 
-# 月を対応する数字に置き換える
+# 月とeducationを対応する数字に置き換える(label encoder)
+# educationのunknownは最頻値であるsecondaryに置換する
 train_en = month_replace(train_en)
 X_test_en = month_replace(X_test_en).drop(['y'], axis=1)
+
+#train_en = education_replace(train_en)
+#X_test_en = education_replace(X_test_en).drop(['y'], axis=1)
 display(train_en.head())
 
 
@@ -78,10 +97,8 @@ for i in range(29):
 
 print(f'aucスコアの平均値: {np.mean(auc_score)}')
 
-
 # 予測値の平均を最終結果にする
 y_pred = np.mean(np.array(pred_score).T, axis=1)
-
 
 
 '''投稿用ファイルの作成'''

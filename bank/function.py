@@ -10,8 +10,6 @@ from IPython.display import display
 
 from sklearn.model_selection import train_test_split
 
-import config
-
 
 def month_replace(df):
     df['month'].replace('jan', 1, inplace=True)
@@ -26,6 +24,14 @@ def month_replace(df):
     df['month'].replace('oct', 10, inplace=True)
     df['month'].replace('nov', 11, inplace=True)
     df['month'].replace('dec', 12, inplace=True)
+
+    return df
+
+
+def education_replace(df):
+    df['education'].replace('primary', 1, inplace=True)
+    df['education'].replace('secondary', 2, inplace=True)
+    df['education'].replace('tertiary', 3, inplace=True)
 
     return df
 
