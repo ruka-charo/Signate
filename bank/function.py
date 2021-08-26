@@ -9,6 +9,8 @@ import japanize_matplotlib
 from IPython.display import display
 
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import roc_auc_score
+import tensorflow as tf
 
 
 def month_replace(df):
@@ -54,3 +56,8 @@ def answer_csv(y_pred, id):
     ans = ans.merge(pred_df, right_index=True, left_index=True)
 
     return ans
+
+# ニューラルネットワーク用評価関数
+def roc_auc(y_true, y_pred):
+    roc_auc = tf.py_function(roc_auc_score, (y_true, y_pred), tf.double)
+    return roc_auc
